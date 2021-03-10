@@ -46,6 +46,7 @@
       maxWidth: Infinity,
       minHeight: 0,
       minWidth: 0,
+      mouseEvents: true,
       resizeFrom: 'parent',
       scrolling: false,
       sizeHeight: true,
@@ -61,6 +62,8 @@
       onMessage: function () {
         warn('onMessage function not defined')
       },
+      onMouseEnter: function () {},
+      onMouseLeave: function () {},
       onResized: function () {},
       onScroll: function () {
         return true
@@ -106,6 +109,7 @@
     var retStr = 'Host page: ' + iframeId
 
     if (window.top !== window.self) {
+      // eslint-disable-next-line unicorn/prefer-ternary
       if (window.parentIFrame && window.parentIFrame.getId) {
         retStr = window.parentIFrame.getId() + ': ' + iframeId
       } else {
@@ -297,10 +301,12 @@
           msgBody +
           '}'
       )
+
       on('onMessage', {
         iframe: messageData.iframe,
         message: JSON.parse(msgBody)
       })
+
       log(iframeId, '--')
     }
 
@@ -506,6 +512,30 @@
       }
     }
 
+    function onMouse(event) {
+      var mousePos = {}
+
+      if (Number(messageData.width) === 0 && Number(messageData.height) === 0) {
+        var data = getMsgBody(9).split(':')
+        mousePos = {
+          x: data[1],
+          y: data[0]
+        }
+      } else {
+        mousePos = {
+          x: messageData.width,
+          y: messageData.height
+        }
+      }
+
+      on(event, {
+        iframe: messageData.iframe,
+        screenX: Number(mousePos.x),
+        screenY: Number(mousePos.y),
+        type: messageData.type
+      })
+    }
+
     function on(funcName, val) {
       return chkEvent(iframeId, funcName, val)
     }
@@ -520,6 +550,14 @@
 
         case 'message':
           forwardMsgFromIFrame(getMsgBody(6))
+          break
+
+        case 'mouseenter':
+          onMouse('onMouseEnter')
+          break
+
+        case 'mouseleave':
+          onMouse('onMouseLeave')
           break
 
         case 'autoResize':
@@ -560,7 +598,19 @@
           break
 
         default:
-          resizeIFrame()
+          if (
+            Number(messageData.width) === 0 &&
+            Number(messageData.height) === 0
+          ) {
+            warn(
+              'Unsupported message received (' +
+                messageData.type +
+                '), this is likely due to the iframe containing a later ' +
+                'version of iframe-resizer than the parent page'
+            )
+          } else {
+            resizeIFrame()
+          }
       }
     }
 
@@ -882,7 +932,9 @@
       ':' +
       settings[iframeId].resizeFrom +
       ':' +
-      settings[iframeId].widthCalculationMethod
+      settings[iframeId].widthCalculationMethod +
+      ':' +
+      settings[iframeId].mouseEvents
     )
   }
 
